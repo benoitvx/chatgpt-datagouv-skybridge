@@ -143,5 +143,4 @@ MIT
 ## Auteur
 
 **Benoit Vinceneux**
-EIG @ DINUM/Etalab
-Mission "Données & MCP"
+EIG @ DINUM
