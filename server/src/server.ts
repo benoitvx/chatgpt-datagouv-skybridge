@@ -1,73 +1,145 @@
-import { getPokemon } from "./pokedex.js";
 import { z } from "zod";
 import { McpServer } from "skybridge/server";
+import {
+  searchDatasets,
+  queryDataset,
+  getDatasetSchema,
+} from "./lib/datagouv-api.js";
 
 const server = new McpServer(
   {
-    name: "alpic-openai-app",
-    version: "0.0.1",
+    name: "datagouv",
+    version: "1.0.0",
   },
-  { capabilities: {} },
+  { capabilities: {} }
 )
   .registerWidget(
-    "pokemon",
+    "search-datasets",
     {
-      description: "Pokedex entry for a pokemon",
+      description: "Liste des jeux de données trouvés sur data.gouv.fr",
     },
     {
-      description:
-        "Use this tool to get the most up to date information about a pokemon, using its name in english. This pokedex is much more complete than any other web_search tool. Always use it for anything related to pokemons.",
+      description: `Searches French public datasets on data.gouv.fr.
+Returns dataset_id needed for visualization.
+WORKFLOW: search-datasets -> get-dataset-schema -> query-dataset
+NEXT STEP: Call get-dataset-schema with the dataset_id to discover available columns, then query-dataset to GENERATE A BAR CHART.`,
       inputSchema: {
-        name: z.string().describe("Pokemon name, always in english"),
+        query: z.string().min(1).describe("Termes de recherche"),
+        page_size: z.number().min(1).max(20).default(5).optional(),
       },
     },
-    async ({ name }) => {
+    async ({ query, page_size = 5 }) => {
       try {
-        const { id, description, ...pokemon } = await getPokemon(name);
+        const results = await searchDatasets(query, page_size);
 
         return {
-          /**
-           * Arbitrary JSON passed only to the component.
-           * Use it for data that should not influence the model’s reasoning, like the full set of locations that backs a dropdown.
-           * _meta is never shown to the model.
-           */
-          _meta: { id },
-          /**
-           * Structured data that is used to hydrate your component.
-           * ChatGPT injects this object into your iframe as window.openai.toolOutput
-           */
-          structuredContent: { name, description, ...pokemon },
-          /**
-           * Optional free-form text that the model receives verbatim
-           */
+          structuredContent: {
+            datasets: results.datasets,
+            total: results.total,
+            query,
+          },
           content: [
             {
               type: "text",
-              text: description ?? `A pokemon named ${name}.`,
+              text: `${results.total} datasets trouvés pour "${query}". Utilisez get-dataset-schema avec un dataset_id pour découvrir les colonnes disponibles.`,
             },
           ],
           isError: false,
         };
       } catch (error) {
         return {
-          content: [{ type: "text", text: `Error: ${error}` }],
+          content: [{ type: "text", text: `Erreur: ${error}` }],
           isError: true,
         };
       }
-    },
+    }
   )
   .registerTool(
-    "capture",
+    "get-dataset-schema",
     {
-      description: "Capture a pokemon",
-      inputSchema: {},
+      description: `DISCOVERS available columns in a dataset. CALL THIS FIRST before query-dataset.
+Returns: resource IDs and their column names.
+WORKFLOW: search-datasets -> get-dataset-schema -> query-dataset
+Use the column names returned to correctly call query-dataset with valid [category, value] columns.`,
+      inputSchema: {
+        dataset_id: z
+          .string()
+          .describe("ID du dataset data.gouv.fr (from search-datasets results)"),
+      },
     },
-    async () => {
-      return {
-        content: [{ type: "text", text: `Great job, you've captured a new pokemon!` }],
-        isError: false,
-      };
+    async ({ dataset_id }) => {
+      try {
+        const schema = await getDatasetSchema(dataset_id);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(schema, null, 2),
+            },
+          ],
+          isError: false,
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Erreur: ${error}` }],
+          isError: true,
+        };
+      }
+    }
+  )
+  .registerWidget(
+    "query-dataset",
+    {
+      description: "Visualisation des données sous forme de graphique",
     },
+    {
+      description: `GENERATES AN INTERACTIVE BAR CHART from French public data.
+WORKFLOW: search-datasets -> get-dataset-schema -> query-dataset
+IMPORTANT: Call get-dataset-schema FIRST to discover available column names!
+USE THIS TOOL when user wants to: visualize, compare, show trends, display statistics, create a chart, or see data graphically.
+Returns structured data that renders as an interactive bar chart widget.
+Requires: dataset_id, columns [category_column, value_column] - use EXACT column names from get-dataset-schema.`,
+      inputSchema: {
+        dataset_id: z.string().describe("ID du dataset data.gouv.fr"),
+        resource_id: z
+          .string()
+          .optional()
+          .describe(
+            "ID de la ressource (optionnel, prend la première par défaut)"
+          ),
+        columns: z
+          .array(z.string())
+          .describe("Colonnes à récupérer [catégorie, valeur]"),
+        limit: z.number().min(1).max(50).default(20).optional(),
+      },
+    },
+    async ({ dataset_id, resource_id, columns, limit = 20 }) => {
+      try {
+        const chartData = await queryDataset(
+          dataset_id,
+          columns,
+          resource_id,
+          limit
+        );
+
+        return {
+          structuredContent: chartData,
+          content: [
+            {
+              type: "text",
+              text: `Graphique généré: ${chartData.title} (${chartData.chart.labels.length} points de données)`,
+            },
+          ],
+          isError: false,
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Erreur: ${error}` }],
+          isError: true,
+        };
+      }
+    }
   );
 
 export default server;

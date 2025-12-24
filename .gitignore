@@ -50,7 +50,7 @@ __pycache__/
 develop-eggs/
 eggs/
 .eggs/
-lib/
+# lib/  # Disabled - conflicts with server/src/lib/
 lib64/
 parts/
 sdist/

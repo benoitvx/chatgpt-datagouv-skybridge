@@ -1,118 +1,147 @@
-# ChatGPT Apps SDK Alpic Starter
+# ChatGPT App data.gouv.fr
 
-This repository is a minimal Typescript application demonstrating how to build an OpenAI Apps SDK compatible MCP server with widget rendering in ChatGPT.
+![POC](https://img.shields.io/badge/status-POC-orange)
+![Skybridge](https://img.shields.io/badge/framework-Skybridge-blue)
+![DINUM](https://img.shields.io/badge/DINUM-Etalab-green)
 
-![Demo](docs/demo.gif)
+> Accédez aux données publiques françaises en langage naturel dans ChatGPT
 
-## Overview
+Application ChatGPT permettant de rechercher, explorer et visualiser les jeux de données de [data.gouv.fr](https://www.data.gouv.fr) directement dans une conversation.
 
-This project shows how to integrate a Typescript express application with the ChatGPT Apps SDK using the Model Context Protocol (MCP). It includes a working MCP server that exposes tools and resources that can be called from ChatGPT, with responses rendered natively in ChatGPT. It also includes MCP tools without UI widgets.
+---
 
-## Getting Started
+## Objectif
 
-### Prerequisites
+- Démocratiser l'accès aux **40 000+ datasets** de data.gouv.fr
+- Permettre aux citoyens de requêter les données en **français naturel**
+- Générer automatiquement des **visualisations** (graphiques)
 
-- Node.js 22+ (see `.nvmrc` for exact version)
-- pnpm (install with `npm install -g pnpm`)
-- Ngrok
+## Fonctionnalités
 
-### Local Development with Hot Module Replacement (HMR)
+| Outil | Description | Widget |
+|-------|-------------|--------|
+| `search-datasets` | Recherche de jeux de données | Cards avec titre, description, organisation |
+| `get-dataset-schema` | Récupération du schéma des colonnes | JSON (guide ChatGPT) |
+| `query-dataset` | Interrogation et visualisation | Bar chart interactif |
 
-This project uses Vite for React widget development with full HMR support, allowing you to see changes in real-time, directly within ChatGPT conversation, without restarting the server.
+**Workflow guidé** : Les descriptions des outils orientent ChatGPT vers le parcours optimal :
+```
+search-datasets → get-dataset-schema → query-dataset
+```
 
-#### 1. Clone and Install
+## Stack technique
+
+| Composant | Technologie |
+|-----------|-------------|
+| Framework | [Skybridge](https://skybridge.tech) |
+| Serveur | Node.js + `skybridge/server` |
+| Widgets | React + `skybridge/web` + Chart.js |
+| Build | Vite + plugin Skybridge |
+| Hébergement | [Fly.io](https://fly.io) |
+| APIs | [data.gouv.fr](https://www.data.gouv.fr/api/) + [API Tabular](https://tabular-api.data.gouv.fr) |
+
+## Installation
+
+### Prérequis
+
+- Node.js >= 22
+- pnpm
+
+### Clone et installation
 
 ```bash
-git clone <repository-url>
-cd apps-sdk-template
+git clone https://github.com/benoitvx/chatgpt-datagouv-skybridge.git
+cd chatgpt-datagouv-skybridge
 pnpm install
 ```
 
-#### 2. Start the Development Server
-
-Run the development server from the root directory:
+### Développement local
 
 ```bash
+# Lancer le serveur de dev (server + web en hot reload)
 pnpm dev
 ```
 
-This command starts an Express server on port 3000. This server packages:
+Le serveur écoute sur `http://localhost:3000`.
 
-- an MCP endpoint on `/mcp` - aka the ChatGPT App Backend
-- a React application on Vite HMR dev server - aka the ChatGPT App Frontend
-
-#### 3. Expose Your Local Server
-
-In a separate terminal, expose your local server using ngrok:
-
+Pour exposer localement à ChatGPT :
 ```bash
 ngrok http 3000
+# Puis utiliser l'URL https://xxxx.ngrok-free.app/mcp
 ```
 
-Copy the forwarding URL from ngrok output:
+## Déploiement
 
 ```bash
-Forwarding     https://3785c5ddc4b6.ngrok-free.app -> http://localhost:3000
+# Connexion à Fly.io
+fly auth login
+
+# Déployer
+fly deploy
 ```
 
-#### 4. Connect to ChatGPT
+L'application sera accessible sur `https://chatgpt-datagouv-v2.fly.dev`.
 
-- Enable **Settings → Connectors → Advanced → Developer mode** in the ChatGPT client
-- Navigate to **Settings → Connectors → Create**
-- Enter your ngrok URL with the `/mcp` path (e.g., `https://3785c5ddc4b6.ngrok-free.app/mcp`)
-- Click **Create**
+## Connexion à ChatGPT
 
-#### 5. Test Your Integration
+1. Ouvrir ChatGPT → **Settings** → **Apps & Connectors** → **Advanced Settings**
+2. Cliquer sur **Create app**
+3. Entrer l'URL : `https://chatgpt-datagouv-v2.fly.dev/mcp`
+4. Valider la création
 
-- Start a new conversation in ChatGPT
-- Select your newly created connector using **the + button → Your connector**
-- Try prompting the model (e.g., "Show me pikachu details")
+### Test
 
-#### 6. Develop with HMR
+Dans une conversation ChatGPT, taper :
+```
+@data.gouv recherche bornes de recharge électrique
+```
 
-Now you can edit React components in `web` and see changes instantly:
+ChatGPT va :
+1. Appeler `search-datasets` → afficher les résultats en cards
+2. Appeler `get-dataset-schema` → récupérer les colonnes
+3. Appeler `query-dataset` → générer un graphique
 
-- Make changes to any component
-- Save the file
-- The widget will automatically update in ChatGPT without refreshing or reconnecting
-- The Express server and MCP server continue running without interruption
-
-**Note:** When you modify widget components, changes will be reflected immediately. If you modify MCP server code (in `src/`), you may need to reload your connector in **Settings → Connectors → [Your connector] → Reload**.
-
-## Widget Naming Convention
-
-**Important:** For a widget to work properly, the name of the endpoint in your MCP server must match the file name of the corresponding React component in `web/src/widgets/`.
-
-For example:
-
-- If you create a widget endpoint named `pokemon-card`, you must create a corresponding React component file at `web/src/widgets/pokemon-card.tsx`
-- The endpoint name and the widget file name (without the `.tsx` extension) must be identical
-
-This naming convention allows the system to automatically map widget requests to their corresponding React components.
-
-## Deploy to Production
-
-Use Alpic to deploy your OpenAI App to production.
-
-[![Deploy on Alpic](https://assets.alpic.ai/button.svg)](https://app.alpic.ai/new/clone?repositoryUrl=https%3A%2F%2Fgithub.com%2Falpic-ai%2Fapps-sdk-template)
-
-- In ChatGPT, navigate to **Settings → Connectors → Create** and add your MCP server URL (e.g., `https://your-app-name.alpic.live`)
-
-## Project Structure
+## Structure du projet
 
 ```
-.
+chatgpt-datagouv-skybridge/
 ├── server/
-│   ├── app.ts          # OpenAI App extension class with widget API implementation
-│   ├── server.ts       # MCP server with tool/resource/prompt registration
-│   └── index.ts        # Express server definition
-└── web/
-    └── src/
-        └── widgets/    # React widget components (must match endpoint names)
+│   ├── src/
+│   │   ├── index.ts           # Point d'entrée Express
+│   │   ├── server.ts          # Définition du serveur MCP Skybridge
+│   │   ├── middleware.ts      # Middleware MCP
+│   │   ├── env.ts             # Variables d'environnement
+│   │   └── lib/
+│   │       └── datagouv-api.ts  # Client API data.gouv.fr
+│   └── package.json
+├── web/
+│   ├── src/
+│   │   ├── helpers.ts         # Hook useToolInfo
+│   │   └── widgets/
+│   │       ├── search-datasets.tsx   # Widget cards résultats
+│   │       └── query-dataset.tsx     # Widget bar chart
+│   ├── vite.config.ts
+│   └── package.json
+├── Dockerfile
+├── fly.toml
+├── pnpm-workspace.yaml
+└── README.md
 ```
 
-## Resources
+## Liens
 
-- [Apps SDK Documentation](https://developers.openai.com/apps-sdk)
-- [Model Context Protocol Documentation](https://modelcontextprotocol.io/)
-- [Alpic Documentation](https://docs.alpic.ai/)
+- **Production** : https://chatgpt-datagouv-v2.fly.dev
+- **API data.gouv.fr** : https://www.data.gouv.fr/api/
+- **API Tabular** : https://tabular-api.data.gouv.fr
+- **Skybridge** : https://skybridge.tech
+- **DINUM** : https://www.numerique.gouv.fr/dinum/
+
+## Licence
+
+MIT
+
+## Auteur
+
+**Benoit Vinceneux**
+EIG @ DINUM/Etalab
+Mission "Données & MCP"
